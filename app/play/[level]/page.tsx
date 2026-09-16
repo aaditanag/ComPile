@@ -23,6 +23,7 @@ interface Session {
   rollNumber: string;
   startedAt: string;
   startedAtMs: number;
+  activeTimeMs: number;
 }
 
 export default function PlayPage() {
@@ -58,6 +59,10 @@ export default function PlayPage() {
   const [showHelp, setShowHelp] = useState(false);
   // index of a loop block that should auto-open its editor (set when adding a loop)
   const [autoEditLoopIdx, setAutoEditLoopIdx] = useState<number | null>(null);
+  
+  // Timer state
+  const [activeTimeMs, setActiveTimeMs] = useState(0);
+  
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load session
@@ -68,7 +73,9 @@ export default function PlayPage() {
       return;
     }
     try {
-      setSession(JSON.parse(raw));
+      const sess = JSON.parse(raw) as Session;
+      setSession(sess);
+      setActiveTimeMs(sess.activeTimeMs || 0);
     } catch {
       router.replace("/");
     }
@@ -80,6 +87,69 @@ export default function PlayPage() {
     setSuccessMsg("");
     setErrorMsg("");
   }, [levelId, resetProgram]);
+
+  // Active time tracking & heartbeat
+  useEffect(() => {
+    if (!session) return;
+
+    let lastTick = Date.now();
+    let tickTimer: ReturnType<typeof setInterval>;
+    let heartbeatTimer: ReturnType<typeof setInterval>;
+
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        const delta = now - lastTick;
+        lastTick = now;
+        setActiveTimeMs((prev) => {
+          const updated = prev + delta;
+          // Sync back to session storage
+          sessionStorage.setItem(
+            "compile_session",
+            JSON.stringify({ ...session, activeTimeMs: updated })
+          );
+          return updated;
+        });
+      } else {
+        lastTick = Date.now(); // reset so we don't count background time
+      }
+    };
+
+    const heartbeat = async () => {
+      try {
+        const raw = sessionStorage.getItem("compile_session");
+        if (!raw) return;
+        const currentSession = JSON.parse(raw) as Session;
+        
+        await fetch("/api/session/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: currentSession.sessionId,
+            activeTimeMs: currentSession.activeTimeMs,
+          }),
+        });
+      } catch (e) {
+        console.error("Heartbeat failed", e);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        lastTick = Date.now();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    tickTimer = setInterval(tick, 1000);
+    heartbeatTimer = setInterval(heartbeat, 30000); // 30s heartbeat
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(tickTimer);
+      clearInterval(heartbeatTimer);
+    };
+  }, [session?.sessionId]);
 
   // Guard
   if (!level) {
@@ -187,8 +257,10 @@ export default function PlayPage() {
         const data = await res.json();
 
         if (data.isFinished) {
-          setTimeout(() => router.push("/leaderboard"), 2000);
+          setSuccessMsg("🏆 You've completed all 10 levels! Redirecting to leaderboard...");
+          setTimeout(() => router.push("/leaderboard"), 4000);
         } else if (data.nextLevel) {
+          setSuccessMsg(`✅ Level ${levelId} complete! Loading next level...`);
           setTimeout(() => router.push(`/play/${data.nextLevel}`), 2000);
         }
       } catch {
@@ -217,7 +289,7 @@ export default function PlayPage() {
             levelCount={TOTAL_LEVELS}
             levelTitle={level.title}
             goalText={level.goalText}
-            startedAt={session.startedAtMs}
+            remainingMs={Math.max(0, CONTEST_DURATION_MS - activeTimeMs)}
             durationMs={CONTEST_DURATION_MS}
             totalBlocks={totalBlocks}
             blockBudget={level.blockBudget}

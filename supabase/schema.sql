@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS students (
   roll_number     TEXT        NOT NULL UNIQUE,
   started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at     TIMESTAMPTZ,
-  total_blocks_used INT       DEFAULT 0
+  total_blocks_used INT       DEFAULT 0,
+  active_time_ms  INT         DEFAULT 0
 );
 
 -- ── Level completions ─────────────────────────────────────────────────────────

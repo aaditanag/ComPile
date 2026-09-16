@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       rollNumber: rollNumber.trim(),
       startedAt,
+      startedAtMs: new Date(startedAt).getTime(),
+      activeTimeMs: 0,
     });
   } catch (e) {
     console.error(e);

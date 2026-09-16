@@ -11,8 +11,58 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showHowToPlay, setShowHowToPlay] = useState(false);
-  const [pendingRedirect, setPendingRedirect] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState<string>("/play/1");
+  const [isResuming, setIsResuming] = useState(false);
 
+  // ── Resume an existing session ──────────────────────────────────────────────
+  const handleResume = async () => {
+    if (!usn.trim()) {
+      setError("Please enter your USN to resume.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setIsResuming(true);
+
+    try {
+      const res = await fetch("/api/session/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rollNumber: usn.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Could not resume session.");
+        setLoading(false);
+        setIsResuming(false);
+        return;
+      }
+
+      // Restore session in sessionStorage exactly like fresh login
+      sessionStorage.setItem(
+        "compile_session",
+        JSON.stringify({
+          sessionId: data.sessionId,
+          name: data.name,
+          rollNumber: data.rollNumber,
+          startedAt: data.startedAt,
+          // Preserve the original start time so the timer stays accurate
+          startedAtMs: new Date(data.startedAt).getTime(),
+        })
+      );
+
+      const target = `/play/${data.nextLevel}`;
+      setLoading(false);
+      router.push(target);
+    } catch {
+      setError("Network error — please try again.");
+      setLoading(false);
+      setIsResuming(false);
+    }
+  };
+
+  // ── Start a fresh session ───────────────────────────────────────────────────
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !usn.trim()) {
@@ -33,12 +83,20 @@ export default function LandingPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        // USN already registered → offer resume automatically
+        if (res.status === 409) {
+          setLoading(false);
+          setError(
+            `USN ${usn.trim()} is already registered. Click "Resume Session" below to continue from where you left off.`
+          );
+          return;
+        }
         setError(data.error ?? "Failed to start session.");
         setLoading(false);
         return;
       }
 
-      // Store session in sessionStorage
+      // Store session
       sessionStorage.setItem(
         "compile_session",
         JSON.stringify({
@@ -50,9 +108,9 @@ export default function LandingPage() {
         })
       );
 
-      // Show the how-to-play guide first, then redirect
+      // Show how-to-play guide, then redirect
       setLoading(false);
-      setPendingRedirect(true);
+      setPendingRedirect("/play/1");
       setShowHowToPlay(true);
     } catch {
       setError("Network error — please try again.");
@@ -62,10 +120,12 @@ export default function LandingPage() {
 
   const handleHowToPlayClose = () => {
     setShowHowToPlay(false);
-    if (pendingRedirect) {
-      router.push("/play/1");
-    }
+    router.push(pendingRedirect);
   };
+
+  // Detect if USN already registered to show Resume button prominently
+  const showResumeButton =
+    error.includes("already registered") || error.includes("already exists");
 
   return (
     <>
@@ -117,29 +177,71 @@ export default function LandingPage() {
                 type="text"
                 placeholder="e.g. 1VA2XXXXXX"
                 value={usn}
-                onChange={(e) => setUsn(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  setUsn(e.target.value.toUpperCase());
+                  // Clear resume-related errors when user edits USN
+                  if (showResumeButton) setError("");
+                }}
                 autoComplete="off"
                 disabled={loading}
               />
             </div>
 
-            {error && <p className="form-error">{error}</p>}
+            {error && (
+              <p className={`form-error${showResumeButton ? " form-error--info" : ""}`}>
+                {error}
+              </p>
+            )}
 
-            <button
-              id="btn-start"
-              className="btn-start"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="btn-start__spinner" />
-              ) : (
-                <>
-                  <span>Start Contest</span>
-                  <span className="btn-start__arrow">→</span>
-                </>
-              )}
-            </button>
+            {/* Resume button — shown prominently when USN is already registered */}
+            {showResumeButton ? (
+              <button
+                id="btn-resume"
+                className="btn-start btn-start--resume"
+                type="button"
+                onClick={handleResume}
+                disabled={loading}
+              >
+                {loading && isResuming ? (
+                  <span className="btn-start__spinner" />
+                ) : (
+                  <>
+                    <span>Resume Session →</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                id="btn-start"
+                className="btn-start"
+                type="submit"
+                disabled={loading}
+              >
+                {loading && !isResuming ? (
+                  <span className="btn-start__spinner" />
+                ) : (
+                  <>
+                    <span>Start Contest</span>
+                    <span className="btn-start__arrow">→</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Always-visible resume hint */}
+            {!showResumeButton && (
+              <p className="landing__resume-hint">
+                Returning?{" "}
+                <button
+                  type="button"
+                  className="landing__resume-link"
+                  onClick={handleResume}
+                  disabled={loading}
+                >
+                  Enter your USN above and click here to resume
+                </button>
+              </p>
+            )}
           </form>
 
           {/* Info strip */}

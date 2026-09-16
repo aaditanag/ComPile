@@ -44,6 +44,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (supabase) {
+      const { data: student } = await supabase
+        .from("students")
+        .select("active_time_ms")
+        .eq("id", sessionId)
+        .single();
+      
+      if (student && (student.active_time_ms ?? 0) >= 90 * 60 * 1000) {
+        return NextResponse.json(
+          { error: "Time expired! You cannot submit anymore." },
+          { status: 403 }
+        );
+      }
+    }
+
     // Load level config
     const level = getLevel(levelId);
     if (!level) {

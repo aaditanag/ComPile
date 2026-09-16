@@ -189,11 +189,13 @@ const LEVELS: Level[] = [
 
   // ─── Level 9 ─── Block budget: same as L5 ring, budget = 12 ──────────────
   // Same ring as level 5. Must use loops efficiently.
-  // Tight budget forces loop use.
+  // Tight budget — ring shape, 4 sides.
+  // Optimal 16-block solution: Loop×5[■amber ↑] + ■amber + ↷ + Loop×4[↑ ■teal] + ↷ + Loop×5[↑ ■amber] + ↷ + Loop×4[↑ ■purple]
+  // Budget of 16 forces loop use but is genuinely achievable.
   {
     id: 9,
     title: "Compressed Ring",
-    goalText: "Budget: 12 blocks max — compress the ring with loops!",
+    goalText: "Budget: 20 blocks max — compress every side of the ring with loops!",
     gridSize: { cols: 12, rows: 11 },
     start: { col: 2, row: 2, facing: "right" },
     targetCells: mix(
@@ -203,18 +205,21 @@ const LEVELS: Level[] = [
       cells("purple", [[2,6],[2,5],[2,4],[2,3]])
     ),
     allowedBlocks: ["forward", "turnLeft", "turnRight", "paint", "loop", "callProc"],
-    blockBudget: 12,
+    blockBudget: 20,
     concept: "block-budget",
   },
 
-  // ─── Level 10 ─── The hardest: H-grid + budget = 14 ─────────────────────
-  // Two parallel rails (amber) + two vertical spines (purple) + center cross (teal).
-  // Start on the left end of the top rail.
-  // Budget forces using loops for all repeating segments + procedures for the spines.
+  // ─── Level 10 ─── H-shape: two amber rails + two purple spines + teal center ─
+  // Optimal ~18-block solution:
+  //   P1 = Loop×6[↑ ■purple]   (spine — move then paint, 6 cells)
+  //   P2 = Loop×6[■teal ↑]     (center — paint then move, 6 cells)
+  //   P3 = Loop×14[■amber ↑] ■amber  (rail — 15 cells)
+  //
+  //   Main: P3, ↷, P1, ↑, ↷, P3, ↷, P1, ↷, ↑×7, ↷, P2  = 18 blocks
   {
     id: 10,
     title: "The Final Form",
-    goalText: "Budget: 14 blocks — rails, spines, and a center cross. All mechanics required.",
+    goalText: "Budget: 25 blocks — paint the H with rails, spines, and a center column. Use loops + functions!",
     gridSize: { cols: 17, rows: 12 },
     start: { col: 1, row: 2, facing: "right" },
     targetCells: mix(
@@ -226,15 +231,11 @@ const LEVELS: Level[] = [
       cells("purple", [[1,3],[1,4],[1,5],[1,6],[1,7],[1,8]]),
       // Right spine — purple
       cells("purple", [[15,3],[15,4],[15,5],[15,6],[15,7],[15,8]]),
-      // Center vertical — teal
-      cells("teal",   [[8,3],[8,4],[8,5],[8,6],[8,7],[8,8]]),
-      // Center horizontal left — teal
-      cells("teal",   [[2,5],[3,5],[4,5],[5,5],[6,5],[7,5]]),
-      // Center horizontal right — teal
-      cells("teal",   [[9,5],[10,5],[11,5],[12,5],[13,5],[14,5]])
+      // Center column — teal
+      cells("teal",   [[8,3],[8,4],[8,5],[8,6],[8,7],[8,8]])
     ),
     allowedBlocks: ["forward", "turnLeft", "turnRight", "paint", "loop", "callProc"],
-    blockBudget: 14,
+    blockBudget: 25,
     concept: "block-budget-hard",
   },
 ];

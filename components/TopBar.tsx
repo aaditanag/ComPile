@@ -7,7 +7,7 @@ interface TopBarProps {
   levelCount: number;
   levelTitle: string;
   goalText: string;
-  startedAt: number;        // unix ms (client-side)
+  remainingMs: number;       // time left in ms
   durationMs: number;       // e.g. 90 * 60 * 1000
   totalBlocks: number;
   blockBudget: number | null;
@@ -28,25 +28,14 @@ export default function TopBar({
   levelCount,
   levelTitle,
   goalText,
-  startedAt,
+  remainingMs,
   durationMs,
   totalBlocks,
   blockBudget,
 }: TopBarProps) {
-  const [remaining, setRemaining] = useState(durationMs);
 
-  useEffect(() => {
-    const tick = () => {
-      const elapsed = Date.now() - startedAt;
-      setRemaining(Math.max(0, durationMs - elapsed));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [startedAt, durationMs]);
-
-  const pct = Math.min(1, remaining / durationMs);
-  const urgentColor = remaining < 5 * 60 * 1000 ? "#ef4444" : undefined;
+  const pct = Math.min(1, remainingMs / durationMs);
+  const urgentColor = remainingMs < 5 * 60 * 1000 ? "#ef4444" : undefined;
 
   return (
     <header className="topbar">
@@ -74,7 +63,7 @@ export default function TopBar({
             className="topbar__timer-label"
             style={{ color: urgentColor ?? "var(--color-muted)" }}
           >
-            {formatTime(remaining)} left
+            {formatTime(remainingMs)} left
           </span>
         </div>
 

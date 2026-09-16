@@ -187,13 +187,48 @@ function snapshotCells(painted: Map<string, PaintColor>): PaintedCell[] {
 
 // ─── Block counter ────────────────────────────────────────────────────────────
 
+/** Collect all procedure IDs that are actually called, transitively. */
+function collectCalledProcs(cmds: Command[], found: Set<string>): void {
+  for (const cmd of cmds) {
+    if (cmd.type === "callProc" && !found.has(cmd.procId)) {
+      found.add(cmd.procId);
+    }
+    if (cmd.type === "loop") {
+      collectCalledProcs(cmd.body, found);
+    }
+  }
+}
+
+/**
+ * Count blocks used — only includes procedure bodies that are actually
+ * called (directly or transitively) from the main program.
+ * Procedures defined but never called do NOT count toward the budget.
+ */
 export function countTotalBlocks(
   program: Command[],
   procedures: Procedures
 ): number {
+  // Find all procedure IDs reachable from main program
+  const called = new Set<string>();
+  collectCalledProcs(program, called);
+
+  // Also collect procs called by those procs (transitive)
+  let prevSize = -1;
+  while (prevSize !== called.size) {
+    prevSize = called.size;
+    for (const id of [...called]) {
+      const body = procedures[id as keyof Procedures];
+      if (body) collectCalledProcs(body, called);
+    }
+  }
+
+  // Count main program + only reachable procedure bodies
   let n = countCommands(program);
-  for (const proc of Object.values(procedures)) {
-    n += countCommands(proc);
+  for (const [id, proc] of Object.entries(procedures)) {
+    if (called.has(id) && proc.length > 0) {
+      n += countCommands(proc);
+    }
   }
   return n;
 }
+
